@@ -16,6 +16,13 @@
     return token_err(err);                                                     \
   }
 
+#define COMPUTE(condition, op)                                                 \
+  if (x->type == NUM) {                                                        \
+    x->num = x->num op x->num;                                                 \
+  } else {                                                                     \
+    x->frac = x->frac op y->num;                                               \
+  }
+
 Token *token_num(long x) {
   Token *v = malloc(sizeof(Token));
   v->type = NUM;
@@ -131,6 +138,12 @@ Token *token_read(mpc_ast_t *tree) {
       continue;
     }
     if (strcmp(tree->children[i]->contents, ")") == 0) {
+      continue;
+    }
+    if (strcmp(tree->children[i]->contents, "{") == 0) {
+      continue;
+    }
+    if (strcmp(tree->children[i]->contents, "}") == 0) {
       continue;
     }
     if (strcmp(tree->children[i]->tag, "regex") == 0) {
@@ -267,78 +280,63 @@ Token *builtin_op(Token *arg, char *op) {
   }
   Token *x = token_pop(arg, 0);
 
-  if (x->type == NUM) {
-    if ((strcmp(op, "-") == 0) && arg->count == 0) {
+  if ((strcmp(op, "-") == 0) && arg->count == 0) {
+    if (x->type == NUM) {
       x->num = -x->num;
-    }
-
-    while (arg->count > 0) {
-      Token *y = token_pop(arg, 0);
-      if (strcmp(op, "+") == 0) {
-        x->num += y->num;
-      }
-      if (strcmp(op, "%") == 0) {
-        if (y->num == 0) {
-          token_delete(x);
-          token_delete(y);
-          x = token_err("Modulus by Zero!");
-          break;
-        }
-        x->num = x->num % y->num;
-      }
-      if (strcmp(op, "-") == 0) {
-        x->num -= y->num;
-      }
-      if (strcmp(op, "*") == 0) {
-        x->num *= y->num;
-      }
-      if (strcmp(op, "/") == 0) {
-        if (y->num == 0) {
-          token_delete(x);
-          token_delete(y);
-          x = token_err("Division by Zero!");
-          break;
-        }
-        x->num /= y->num;
-      }
-      token_delete(y);
-    }
-  } else {
-    if ((strcmp(op, "-") == 0) && arg->count == 0) {
+    } else {
       x->frac = -x->frac;
     }
-
-    while (arg->count > 0) {
-      Token *y = token_pop(arg, 0);
-      if (strcmp(op, "+") == 0) {
-        x->frac += y->frac;
+  }
+  while (arg->count > 0) {
+    Token *y = token_pop(arg, 0);
+    if (strcmp(op, "+") == 0) {
+      if (x->type == NUM) {
+        x->num = x->num + y->num;
+      } else {
+        x->frac = x->frac + y->frac;
       }
-      if (strcmp(op, "%") == 0) {
-        if (y->frac == 0) {
-          token_delete(x);
-          token_delete(y);
-          x = token_err("Modulus by Zero!");
-          break;
-        }
+    }
+    if (strcmp(op, "-") == 0) {
+      if (x->type == NUM) {
+        x->num = x->num - y->num;
+      } else {
+        x->frac = x->frac - y->frac;
+      }
+    }
+    if (strcmp(op, "*") == 0) {
+      if (x->type == NUM) {
+        x->num = x->num * y->num;
+      } else {
+        x->frac = x->frac * y->frac;
+      }
+    }
+    if (strcmp(op, "/") == 0) {
+      if (y->num == 0 || y->frac == 0) {
+        token_delete(x);
+        token_delete(y);
+        x = token_err("Division by Zero!");
+        break;
+      }
+      if (x->type == NUM) {
+        x->num = x->num / y->num;
+      } else {
+        x->frac = x->frac / y->frac;
+      }
+    }
+    if (strcmp(op, "%") == 0) {
+      if (y->num == 0 || y->frac == 0) {
+        token_delete(x);
+        token_delete(y);
+        x = token_err("Modulus by Zero!");
+        break;
+      }
+      if (x->type == NUM) {
+        x->num = x->num % y->num;
+      } else {
         x->frac = fmod(x->frac, y->frac);
       }
-      if (strcmp(op, "-") == 0) {
-        x->frac -= y->frac;
-      }
-      if (strcmp(op, "*") == 0) {
-        x->frac *= y->frac;
-      }
-      if (strcmp(op, "/") == 0) {
-        if (y->frac == 0) {
-          token_delete(x);
-          token_delete(y);
-          x = token_err("Division by Zero!");
-          break;
-        }
-        x->frac /= y->frac;
-      }
-      token_delete(y);
     }
+    token_delete(y);
   }
   token_delete(arg);
   return x;
